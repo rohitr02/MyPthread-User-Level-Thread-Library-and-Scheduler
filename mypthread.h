@@ -18,16 +18,26 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ucontext.h>
 
 typedef uint mypthread_t;
+
+typedef enum {
+	blocked, ready, run, done
+}mypthread_status;
 
 typedef struct threadControlBlock {
 	/* add important states in a thread control block */
 	// thread Id
+	mypthread_t* threadID;
 	// thread status
+	mypthread_status threadStatus;
 	// thread context
+	ucontext_t threadContext;
 	// thread stack
+	threadStack* threadStack;
 	// thread priority
+	uint threadPriority;
 	// And more ...
 
 	// YOUR CODE HERE
@@ -42,6 +52,15 @@ typedef struct mypthread_mutex_t {
 
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
+
+typedef struct {
+	tcb* threadTCB;
+	struct threadNode* next;
+}threadNode;
+
+typedef struct {
+	threadNode* head;
+}threadStack;
 
 // YOUR CODE HERE
 

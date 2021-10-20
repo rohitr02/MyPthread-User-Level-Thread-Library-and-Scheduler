@@ -14,9 +14,16 @@
 int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
        // create Thread Control Block
+	   tcb* newTCB = (tcb*) malloc(sizeof(tcb));
+	   newTCB->threadID = thread;
+	   newTCB->threadPriority = 0;
+	   newTCB->threadStatus = ready;
        // create and initialize the context of this thread
+
        // allocate space of stack for this thread to run
+
        // after everything is all set, push this thread int
+	   
        // YOUR CODE HERE
 
     return 0;
