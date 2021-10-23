@@ -1,3 +1,4 @@
+
 // File:	mypthread_t.h
 
 // List all group member's name:
@@ -19,50 +20,57 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ucontext.h>
+#include <signal.h>
+#include <stdbool.h>
+#include <sys/time.h>
+#include <stdatomic.h>
+#include <string.h>
 
-typedef uint mypthread_t;
+typedef unsigned int mypthread_t;
 
 typedef enum {
-	blocked, ready, run, done
+	run, block, done, destroy
 }mypthread_status;
 
 typedef struct threadControlBlock {
 	/* add important states in a thread control block */
-	// thread Id
-	mypthread_t* threadID;
-	// thread status
+	mypthread_t threadID;
 	mypthread_status threadStatus;
-	// thread context
-	ucontext_t threadContext;
-	// thread stack
-	threadStack* threadStack;
-	// thread priority
-	uint threadPriority;
-	// And more ...
-
-	// YOUR CODE HERE
+	ucontext_t* threadContext;
+	unsigned int threadPriority;
+    void* returnValue;
+	void** valuePtr;
+	unsigned long int quantum;
+	mypthread_t blocked;
 } tcb;
-
-/* mutex struct definition */
-typedef struct mypthread_mutex_t {
-	/* add something here */
-
-	// YOUR CODE HERE
-} mypthread_mutex_t;
 
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
 
-typedef struct {
+typedef struct threadNode{
 	tcb* threadTCB;
 	struct threadNode* next;
+	int quantum;
 }threadNode;
 
-typedef struct {
+typedef struct threadQueue{
 	threadNode* head;
-}threadStack;
+	// size_t size; 
+}threadQueue;
 
-// YOUR CODE HERE
+
+/* mutex struct definition */
+typedef struct mypthread_mutex_t {
+	/* add something here */
+	threadNode* waitList;
+	int lock;
+} mypthread_mutex_t;
+
+// typedef struct mutexNode {
+//   	mypthread_mutex_t* mutex;
+//   	struct mutexNode* next;
+// } mutexNode;
+
 
 
 /* Function Declarations: */
