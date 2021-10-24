@@ -1,9 +1,6 @@
 #include "mypthread.h"
 
-// METHODS FOR THE QUEUE DATA STRUCTURE
-
 threadNode* ThreadQueue = NULL;
-static mypthread_t currentThread;
 static int threadIDs = 0;
 static tcb* runningBlock;
 
@@ -134,38 +131,34 @@ tcb* create_tcb(mypthread_t tid, bool createContext){
     return thread;
 }
 
-void resetTimer(){
+void setupAction(){
     struct sigaction action;
-    struct itimerval timer;
-
-    memset(&action, 0, sizeof(struct sigaction));
     action.sa_handler = &sched_stcf;
     sigaction(SIGPROF, &action, NULL);
+}
 
+void setupTimer(){
+    struct itimerval timer;
     timer.it_value.tv_sec = 0;
     timer.it_value.tv_usec = QUANTUM;
-
     timer.it_interval.tv_sec = 0;
     timer.it_interval.tv_usec = QUANTUM;
-
     setitimer(ITIMER_PROF, &timer, NULL);
 }
 
 void createMainThread(){
     atexit(freeThreadQueue);
-    currentThread = threadIDs++;
-    runningBlock = create_tcb(currentThread, false);
-    resetTimer();
+    runningBlock = create_tcb(threadIDs++, false);
+    setupAction();
+    setupTimer();
     getcontext(&(runningBlock->threadContext));
 }
 
 /* create a new thread */
 int mypthread_create(mypthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg) {
     if(!threadIDs) createMainThread();
-
-    currentThread = threadIDs++;
-    *thread = currentThread;
-    tcb* threadBlock = create_tcb(currentThread, true);
+    tcb* threadBlock = create_tcb(threadIDs++, true);
+    *thread = threadBlock->threadID;
     enqueue(threadBlock);
     makecontext(&(threadBlock->threadContext), (void*) function, 1, arg); 
     return 0;
@@ -225,7 +218,6 @@ int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
         threadNode* temp = malloc(sizeof(threadNode));
         temp->next = mutex->waitList;
         temp->thread = runningBlock;
-        temp->thread->elapsedTime = 0;
         mutex->waitList = temp;
         sched_stcf();
     }
@@ -234,12 +226,12 @@ int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
 
 /* release the mutex lock */
 int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
-    threadNode* temp = mutex->waitList;
-    while(temp != NULL){
-        temp->thread->threadStatus = run;
-        threadNode* k = temp;
-        temp = temp->next;
-        free(k);
+    threadNode* cur = mutex->waitList;
+    while(cur != NULL){
+        cur->thread->threadStatus = run;
+        threadNode* temp = cur;
+        cur = cur->next;
+        free(temp);
     }
     mutex->waitList = NULL;
     mutex->lock = 0;
@@ -249,6 +241,13 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
 
 /* destroy the mutex */
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
+    threadNode* cur = mutex->waitList;
+    while(cur != NULL){
+        cur->thread->threadStatus = run;
+        threadNode* temp = cur;
+        cur = cur->next;
+        free(temp);
+    }
 	return 0;
 };
 
@@ -262,7 +261,8 @@ static void sched_stcf() {
     if(runningBlock != NULL){
         prevThread->elapsedTime++;
         enqueue(prevThread);
-        resetTimer();
+        setupAction();
+        setupTimer();
         swapcontext(&(prevThread->threadContext), &(runningBlock->threadContext));
     }
     else runningBlock = prevThread;

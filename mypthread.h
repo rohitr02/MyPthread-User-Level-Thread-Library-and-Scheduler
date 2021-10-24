@@ -62,7 +62,8 @@ void destroyAll();
 void freeThreads(void);
 static void sched_stcf();
 tcb* create_tcb(mypthread_t tid, bool createContext);
-void resetTimer();
+void setupAction();
+void setupTimer();
 void createMainThread();
 void freeThreads(void);
 
