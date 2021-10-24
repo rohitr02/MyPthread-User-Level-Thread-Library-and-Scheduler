@@ -111,6 +111,9 @@ tcb* create_tcb(mypthread_t tid, bool createContext){
     thread->threadID = tid;
     thread->blockingThread = -1;
     thread->threadStatus = run;
+    thread->elapsedTime = 0;
+    thread->valuePtr = NULL;
+    thread->returnVal = NULL;
     if(createContext){
         getcontext(&(thread->threadContext));
         thread->threadContext.uc_link = NULL;
@@ -251,5 +254,8 @@ static void sched_stcf() {
         setupTimer();
         swapcontext(&(prevThread->threadContext), &(currentlyRunningThreadBlock->threadContext));
     }
-    else currentlyRunningThreadBlock = prevThread;
+    else {
+		currentlyRunningThreadBlock = prevThread;
+		if(currentlyRunningThreadBlock->threadID == 0) freeThreadQueue();
+	}
 }
