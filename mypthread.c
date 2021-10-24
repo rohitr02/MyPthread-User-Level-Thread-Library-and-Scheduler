@@ -350,7 +350,7 @@
 // INITAILIZE ALL YOUR VARIABLES HERE
 // YOUR CODE HERE
 int threadID = 0;
-threadControlBlock* currentlyRunningThread;
+Node* currentlyRunningThread;
 Node* readyQueue = NULL;
 Node* sleepingQueue = NULL;
 Node* finishedQueue = NULL;
@@ -386,22 +386,17 @@ void runMainThread() {
 	mainThread->valuePtr = NULL;
 	mainThread->returnValue = NULL;
 
-	currentlyRunningThread = mainThread;
+	currentlyRunningThread->next = NULL;
+	currentlyRunningThread->threadInfo = mainThread;
 	resetTimer();
-	getcontext(&(currentlyRunningThread->threadContext));
+	getcontext(&(currentlyRunningThread->threadInfo->threadContext));
 }
 
 
 // adds blocks to the head of the reayQueue
 // when we search for the next job we'll traverse the ready queue and select accordingly, so insertion is not too important
-void addToReadyQueue(threadControlBlock* thread) {
-	Node* newTCB = malloc(sizeof(Node));
-	newTCB->threadInfo = thread;
-	newTCB->next = NULL;
-
-
-	
-	if(readyQueue == NULL) readyQueue = newTCB;
+void addToReadyQueue(Node* thread) {
+	if(readyQueue == NULL) readyQueue = thread;
 	else {
 
 		Node* currentThread = readyQueue;
@@ -409,15 +404,15 @@ void addToReadyQueue(threadControlBlock* thread) {
 
 		while(currentThread != NULL) {
 			int currentThreadQuantum = currentThread->threadInfo->quantumsElapsed;
-			int incomingThreadQuantum = thread->quantumsElapsed;
+			int incomingThreadQuantum = thread->threadInfo->quantumsElapsed;
 
 			if(incomingThreadQuantum < currentThreadQuantum) {
 				if(prevThread == NULL) { // the first quantum is greater than the incoming thread's, make head new thread
-					newTCB->next = readyQueue;
-					readyQueue = newTCB;
+					thread->next = readyQueue;
+					readyQueue = thread;
 				} else {
-					prevThread->next = newTCB;
-					newTCB->next = currentThread;
+					prevThread->next = thread;
+					thread->next = currentThread;
 				}
 				return;
 			}
@@ -427,7 +422,7 @@ void addToReadyQueue(threadControlBlock* thread) {
 		}
 
 		// incoming thread has the greatest quantum of all elements in queue
-		prevThread->next = newTCB;
+		prevThread->next = thread;
 	}
 
 	return;
@@ -467,7 +462,10 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
 	newThread->valuePtr = NULL;
 	newThread->returnValue = NULL;
 	*thread = threadID++;
-	addToReadyQueue(newThread); // doesnt work yet, function doesnt work yet
+	Node* newBlock = malloc(sizeof(Node));
+	newBlock->next = NULL;
+	newBlock->threadInfo = newThread;
+	addToReadyQueue(newBlock); // doesnt work yet, function doesnt work yet
 
 	getcontext(&(newThread->threadContext));
 	newThread->threadContext.uc_link = NULL;
@@ -481,13 +479,13 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
 
 
 // gets job with lowest QUANTUMelapsed, lowest elapsedQuantum indicates the thread that has ran the least
-threadControlBlock* getNextReadyThread() {
+Node* getNextReadyThread() {
 	if(readyQueue == NULL) return NULL;
 	else {
 		// return the current head, lowest quantum
 		Node* lowestQuantumThread = readyQueue;
 		readyQueue = readyQueue->next;
-		return lowestQuantumThread->threadInfo;
+		return lowestQuantumThread;
 	}
 }
 
@@ -598,7 +596,7 @@ void wakeUpThread(mypthread_t threadID) {
 				prevThread->next = currentThread->next;
 			}
 			currentThread->threadInfo->sleptByThreadID = -1;
-			addToReadyQueue(currentThread->threadInfo);
+			addToReadyQueue(currentThread);
 			return;
 		}
 
@@ -614,17 +612,17 @@ void wakeUpThread(mypthread_t threadID) {
 void mypthread_exit(void *value_ptr) {
 	// Deallocated any dynamic memory created when starting this thread
 	// YOUR CODE HERE
-	if(currentlyRunningThread->valuePtr != NULL) {
-		*currentlyRunningThread->valuePtr = value_ptr;
-		currentlyRunningThread->threadStatus = FREE;
+	if(currentlyRunningThread->threadInfo->valuePtr != NULL) {
+		*currentlyRunningThread->threadInfo->valuePtr = value_ptr;
+		currentlyRunningThread->threadInfo->threadStatus = FREE;
 		addToFree(currentlyRunningThread);
 	} else {
-		currentlyRunningThread->returnValue = value_ptr;
-		currentlyRunningThread->threadStatus = FINISHED;
+		currentlyRunningThread->threadInfo->returnValue = value_ptr;
+		currentlyRunningThread->threadInfo->threadStatus = FINISHED;
 		addToFinishedQueue(currentlyRunningThread);
 	}
 
-	wakeUpThread(currentlyRunningThread->threadID);
+	wakeUpThread(currentlyRunningThread->threadInfo->threadID);
 	schedule();
 };
 
@@ -648,12 +646,12 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
 		return EXIT_SUCCESS;
 	}
 
-	currentlyRunningThread->threadStatus = SLEEP;
-	currentlyRunningThread->sleptByThreadID = thread;
+	currentlyRunningThread->threadInfo->threadStatus = SLEEP;
+	currentlyRunningThread->threadInfo->sleptByThreadID = thread;
 
 	Node* newSleepingThread = malloc(sizeof(Node));
 	newSleepingThread->next = NULL;
-	newSleepingThread->threadInfo = currentlyRunningThread;
+	newSleepingThread->threadInfo = currentlyRunningThread->threadInfo;
 	addToSleepingQueue(newSleepingThread);
 
 	threadToJoin = getFromReadyQueue(thread);
@@ -686,10 +684,11 @@ int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
         // if acquiring mutex fails, push current thread into block list and //
         // context switch to the scheduler thread
 		while(atomic_flag_test_and_set(&(mutex->lock))){
-			currentlyRunningThread->threadStatus = WAITING;
+			currentlyRunningThread->threadInfo->threadStatus = WAITING;
+
 			Node* newThreadWaiting = malloc(sizeof(Node));
-			newThreadWaiting->next = mutex->lock;
-			newThreadWaiting->threadInfo = currentlyRunningThread;
+			newThreadWaiting->next = mutex->waitList;
+			newThreadWaiting->threadInfo = currentlyRunningThread->threadInfo;
 			mutex->waitList = newThreadWaiting;
 			schedule();
 		}
@@ -704,7 +703,7 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
 
 	// YOUR CODE HERE
 	while(mutex->waitList != NULL) {
-		addToReadyQueue(mutex->waitList->threadInfo);
+		addToReadyQueue(mutex->waitList);
 		mutex->waitList = mutex->waitList->next;
 	}
 	mutex->waitList = NULL;
@@ -725,10 +724,10 @@ static void schedule() {
 }
 
 void cleanFree() {
-	if(cleanFree == NULL) return;
+	if(freeThreads == NULL) return;
 
 	Node* prevThread = NULL;
-	Node* currentThread = cleanFree;
+	Node* currentThread = freeThreads;
 
 	while(currentThread != NULL) {
 		prevThread = currentThread;
@@ -755,7 +754,7 @@ static void sched_stcf() {
 	// (feel free to modify arguments and return types)
 	cleanFree();
 	signal(SIGPROF, SIG_IGN);
-	threadControlBlock* nextThreadToRun = getNextReadyThread();
+	Node* nextThreadToRun = getNextReadyThread();
 
 	// there isn't another thread ready to run, so keep running the same one
 	if(nextThreadToRun == NULL) {
@@ -763,17 +762,17 @@ static void sched_stcf() {
 	}
 
 	// at this point there IS another thread to yield to, so we increment the current thread's quantum (times it ran)
-	currentlyRunningThread->quantumsElapsed++;
+	currentlyRunningThread->threadInfo->quantumsElapsed++;
 
 	// change the state of the thread that was currently running to ready and add it to the ready queue
-	currentlyRunningThread->threadStatus = READY;
+	currentlyRunningThread->threadInfo->threadStatus = READY;
 	addToReadyQueue(currentlyRunningThread);
 
 	// change the new thread's state to running;
-	nextThreadToRun->threadStatus = RUNNING;
+	nextThreadToRun->threadInfo->threadStatus = RUNNING;
 	currentlyRunningThread = nextThreadToRun;
 	resetTimer();
-	swapcontext(&(currentlyRunningThread->threadContext), &(nextThreadToRun->threadContext));
+	swapcontext(&(currentlyRunningThread->threadInfo->threadContext), &(nextThreadToRun->threadInfo->threadContext));
 }
 
 void destroyAll() {
@@ -789,5 +788,7 @@ void destroyAll() {
 		free(prevThread);
 	}
 
+	free(currentlyRunningThread->threadInfo->threadContext.uc_stack.ss_sp);
+	free(currentlyRunningThread->threadInfo);
 	free(currentlyRunningThread);
 }
