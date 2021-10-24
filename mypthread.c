@@ -1,62 +1,66 @@
 #include "mypthread.h"
 
 // METHODS FOR THE QUEUE DATA STRUCTURE
-void enqueue(threadNode** queue, tcb* item, int quantum){
-    if(queue == NULL)
-        return;
+
+threadNode* ThreadQueue = NULL;
+static mypthread_t currentThread;
+static int threadIDs = 0;
+static tcb* runningBlock;
+
+
+void enqueue(tcb* item){
     threadNode* temp = malloc(sizeof(threadNode));
     temp->next = NULL;
     temp->thread = item;
-    temp->quantum = quantum;
+    temp->thread->elapsedTime = item->elapsedTime;
     
-    threadNode* front = *queue;
+    threadNode* cur = ThreadQueue;
+	int elapsedTime = item->elapsedTime;
     
-    if(front == NULL){
-        *queue = temp;
+    if(cur == NULL){
+    	ThreadQueue = temp;
         return;
     }
 
-    if(front->quantum > quantum){
-        temp->next = front;
-        *queue = temp;
+    if(cur->thread->elapsedTime > elapsedTime){
+        temp->next = cur;
+        ThreadQueue = temp;
         return;
     }
 
-    threadNode* trail = front;
-    threadNode* lead = front->next;
-    while(lead != NULL && lead->quantum < quantum){
-        trail = lead;
-        lead = lead->next;
+    threadNode* prev = cur;
+    threadNode* ptr = cur->next;
+    while(ptr != NULL && ptr->thread->elapsedTime < elapsedTime){
+        prev = ptr;
+        ptr = ptr->next;
     }
-    temp->next = lead;
-    trail->next = temp;
-    *queue = front;
+    temp->next = ptr;
+    prev->next = temp;
+    ThreadQueue = cur;
 }
-tcb* dequeue(threadNode** queue){
-    threadNode* front = *queue;
-    if(front == NULL)
-        return NULL;
-    if(front->thread->threadStatus == run){
-        *queue = front->next;
-        tcb* block = front->thread;
-        free(front);
+tcb* dequeue(){
+    threadNode* cur = ThreadQueue;
+    if(cur == NULL) return NULL;
+    if(cur->thread->threadStatus == run){
+        ThreadQueue = cur->next;
+        tcb* block = cur->thread;
+        free(cur);
         return block;
     }
-    threadNode* trail = front;
-    threadNode* lead = front->next;
-    while(lead != NULL && lead->thread->threadStatus != run){
-        trail = lead;
-        lead = lead->next;
+    threadNode* prev = cur;
+    threadNode* ptr = cur->next;
+    while(ptr != NULL && ptr->thread->threadStatus != run){
+        prev = ptr;
+        ptr = ptr->next;
     }
-    if(lead == NULL)
-        return NULL;
-    trail->next = lead->next;
-    tcb* block = lead->thread;
-    free(lead);
+    if(ptr == NULL) return NULL;
+    prev->next = ptr->next;
+    tcb* block = ptr->thread;
+    free(ptr);
     return block;
 }
-void updateQueueRunnable(threadNode** queue, mypthread_t tid){
-    threadNode *temp = *queue;
+void unblockThread(mypthread_t tid){
+    threadNode *temp = ThreadQueue;
     while(temp != NULL){
         if(temp->thread->blockingThread == tid && temp->thread->threadStatus == block){
             temp->thread->blockingThread = -1;
@@ -64,60 +68,45 @@ void updateQueueRunnable(threadNode** queue, mypthread_t tid){
         }
         temp = temp->next;
     }
-    return;
 }
-int checkIfFinished(threadNode** queue, mypthread_t waiting){
-    threadNode* temp = *queue;
+int isFinished(mypthread_t tid){
+    threadNode* temp = ThreadQueue;
     while(temp != NULL){
-        if(temp->thread->threadID == waiting &&temp->thread->threadStatus == done)
+        if(temp->thread->threadID == tid &&temp->thread->threadStatus == done)
             return 1;
         temp = temp->next;
     }
     return 0;
 }
-tcb* getBlock(threadNode** queue, mypthread_t tid){
-    threadNode* temp = *queue;
+tcb* getTCB(mypthread_t tid){
+    threadNode* temp = ThreadQueue;
     while(temp != NULL){
         if(temp->thread->threadID == tid)
             return temp->thread;
         temp = temp->next;
-
     }
     return NULL;
 }
-void cleanup(threadNode** queue){
-    threadNode* trail = *queue;
-    threadNode* lead = trail->next;
-    while(lead != NULL){
-        if(lead->thread->threadStatus == destroy){
-            trail->next = lead->next;
-            free(lead->thread->threadContext.uc_stack.ss_sp);
-            free(lead->thread);
-            free(lead);
-            lead = trail->next;
+void destroyAll(){
+    threadNode* prev = NULL;
+    threadNode* cur = ThreadQueue;
+    while(cur != NULL){
+        if(cur->thread->threadStatus == destroy){
+            prev->next = cur->next;
+			cur = prev->next;
+            free(prev->thread->threadContext.uc_stack.ss_sp);
+            free(prev->thread);
+            free(prev);
             continue;
         }
-        trail = lead;
-        lead = lead->next;
-    }
-    trail = *queue;
-    if(trail->thread->threadStatus == destroy){
-        *queue = trail->next;
-        free(trail->thread->threadContext.uc_stack.ss_sp);
-        free(trail->thread);
-        free(trail);
+        prev = cur;
+        cur = cur->next;
     }
 }
 
 
-
 // INITAILIZE ALL YOUR VARIABLES HERE
-threadNode* ThreadQueue = NULL;
-static mypthread_t currentThread;
-static int threadIDs = 0;
-static tcb* runningBlock;
-
-void exitCleanup(void);
+void freeThreads(void);
 static void sched_stcf();
 
 
@@ -126,7 +115,7 @@ tcb* create_tcb(mypthread_t tid, bool createContext){
     thread->threadID = tid;
     thread->blockingThread = -1;
     thread->threadStatus = run;
-    thread->quantum = 0;
+    thread->elapsedTime = 0;
     thread->valuePtr = NULL;
     thread->returnVal = NULL;
     if(createContext){
@@ -147,15 +136,15 @@ void resetTimer(){
     sigaction(SIGPROF, &action, NULL);
 
     timer.it_value.tv_sec = 0;
-    timer.it_value.tv_usec = TIME_QUANTUM;
+    timer.it_value.tv_usec = QUANTUM;
 
     timer.it_interval.tv_sec = 0;
-    timer.it_interval.tv_usec = TIME_QUANTUM;
+    timer.it_interval.tv_usec = QUANTUM;
     setitimer(ITIMER_PROF, &timer, NULL);
 }
 
 void createMainThread(){
-    atexit(exitCleanup);
+    atexit(freeThreads);
     currentThread = threadIDs++;
     runningBlock = create_tcb(currentThread, false);
     
@@ -170,8 +159,8 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr, void *(*functi
     currentThread = threadIDs;
     tcb* threadBlock = create_tcb(currentThread, true);
     *thread = threadIDs++;
-    enqueue(&ThreadQueue, threadBlock, 0);
-    // enqueue(ThreadQueue, threadBlock, 0);
+	threadBlock->elapsedTime = 0;
+    enqueue(threadBlock);
     makecontext(&(threadBlock->threadContext), (void*) function, 1, arg); 
     return 0;
 };  
@@ -190,18 +179,15 @@ void mypthread_exit(void *value_ptr) {
         runningBlock->threadStatus = destroy;
     }
     else runningBlock->returnVal = value_ptr;
-    updateQueueRunnable(&ThreadQueue, runningBlock->threadID);
-    // updateQueueRunnable(ThreadQueue, runningBlock->tid);
+    unblockThread(runningBlock->threadID);
     sched_stcf();
 };
 
 
 /* Wait for thread termination */
 int mypthread_join(mypthread_t thread, void **value_ptr) {
-    if(checkIfFinished(&ThreadQueue, thread)){
-    // if(checkIfFinished(ThreadQueue, thread)){
-        tcb* block = getBlock(&ThreadQueue, thread);
-        // tcb* block = getBlock(ThreadQueue, thread);
+    if(isFinished(thread)){
+        tcb* block = getTCB(thread);
         if(value_ptr != NULL){
             block->threadStatus = destroy;
             *value_ptr = block->returnVal;
@@ -210,8 +196,7 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
     }
     runningBlock->threadStatus = block;
     runningBlock->blockingThread = thread;
-    tcb* block = getBlock(&ThreadQueue, thread);
-    // tcb* block = getBlock(ThreadQueue, thread);
+    tcb* block = getTCB(thread);
     if(block != NULL)
         block->valuePtr = value_ptr;
     sched_stcf();
@@ -235,7 +220,7 @@ int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
         threadNode* temp = malloc(sizeof(threadNode));
         temp->next = mutex->waitList;
         temp->thread = runningBlock;
-        temp->quantum = 0;
+        temp->thread->elapsedTime = 0;
         mutex->waitList = temp;
         sched_stcf();
     }
@@ -264,26 +249,23 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 
 /* Preemptive SJF (STCF) scheduling algorithm */
 static void sched_stcf() {
-    cleanup(&ThreadQueue);
-    // cleanup(ThreadQueue);
+    destroyAll();
     signal(SIGPROF, SIG_IGN);
     
     tcb* prevThread = runningBlock;
-    runningBlock = dequeue(&ThreadQueue);
-    // runningBlock = dequeue(ThreadQueue);
+    runningBlock = dequeue();
     if(runningBlock == NULL){
         runningBlock = prevThread;
         return;
     }
-    prevThread->quantum++;
-    enqueue(&ThreadQueue, prevThread, prevThread->quantum);
-    // enqueue(ThreadQueue, prevThread, prevThread->quantum);
+    prevThread->elapsedTime++;
+    enqueue(prevThread);
     
     resetTimer();
     swapcontext(&(prevThread->threadContext), &(runningBlock->threadContext));
 }
 
-void exitCleanup(void){
+void freeThreads(void){
     while(ThreadQueue != NULL){
         threadNode* temp = ThreadQueue;
         ThreadQueue = ThreadQueue->next;

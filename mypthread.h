@@ -19,8 +19,8 @@
 #include <stdatomic.h>
 #include <string.h>
 
-#define MAX_THREADS 100
-#define TIME_QUANTUM 20000
+
+#define QUANTUM 15000
 
 typedef unsigned int mypthread_t;
 
@@ -32,7 +32,7 @@ typedef struct {
     mypthread_t threadID;
     ucontext_t threadContext;
     mypthread_status threadStatus;
-    int quantum;
+    int elapsedTime;
     mypthread_t blockingThread;
     void** valuePtr;
     void* returnVal;
@@ -42,7 +42,6 @@ typedef struct {
 typedef struct threadNode{
 	tcb* thread;
 	struct threadNode* next;
-	int quantum;
 }threadNode;
 
 
