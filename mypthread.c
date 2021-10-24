@@ -24,12 +24,11 @@ void addThreadToTCB(tcb* item){
 			if(prev == allThreadControlBlocks) {
 				temp->next = allThreadControlBlocks;
 				allThreadControlBlocks = temp;
-				return;
 			} else {
 				temp->next = ptr;
 				prev->next = temp;
-				return;
 			}
+			return;
 		}
         prev = ptr;
         ptr = ptr->next;
@@ -112,9 +111,6 @@ tcb* create_tcb(mypthread_t tid, bool createContext){
     thread->threadID = tid;
     thread->blockingThread = -1;
     thread->threadStatus = run;
-    thread->elapsedTime = 0;
-    thread->valuePtr = NULL;
-    thread->returnVal = NULL;
     if(createContext){
         getcontext(&(thread->threadContext));
         thread->threadContext.uc_link = NULL;
@@ -140,7 +136,6 @@ void setupTimer(){
 }
 
 void createMainThread(){
-    atexit(freeThreadQueue);
     currentlyRunningThreadBlock = create_tcb(threadIDs++, false);
     setupAction();
     setupTimer();
@@ -149,7 +144,7 @@ void createMainThread(){
 
 /* create a new thread */
 int mypthread_create(mypthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg) {
-    if(!threadIDs) createMainThread();
+    if(threadIDs == 0) createMainThread();
     tcb* threadBlock = create_tcb(threadIDs++, true);
     *thread = threadBlock->threadID;
     addThreadToTCB(threadBlock);
@@ -200,7 +195,7 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
 /* initialize the mutex lock */
 int mypthread_mutex_init(mypthread_mutex_t *mutex, const pthread_mutexattr_t *mutexattr) {
 	//initialize data structures for this mutex
-    if(threadIDs==0) createMainThread();
+    if(threadIDs == 0) createMainThread();
     mutex->waitList = NULL;
     mutex->lock = 0;
     return 0;
