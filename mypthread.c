@@ -226,14 +226,14 @@ int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
 
 /* release the mutex lock */
 int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
-    threadNode* cur = mutex->waitList;
-    while(cur != NULL){
-        cur->thread->threadStatus = run;
-        threadNode* temp = cur;
-        cur = cur->next;
-        free(temp);
-    }
-    mutex->waitList = NULL;
+    // threadNode* cur = mutex->waitList;
+    // while(cur != NULL){
+    //     cur->thread->threadStatus = run;
+    //     threadNode* temp = cur;
+    //     cur = cur->next;
+    //     free(temp);
+    // }
+   // mutex->waitList = NULL;
     mutex->lock = 0;
 	return 0;
 };
@@ -241,6 +241,8 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
 
 /* destroy the mutex */
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
+	mypthread_mutex_unlock(mutex);
+
     threadNode* cur = mutex->waitList;
     while(cur != NULL){
         cur->thread->threadStatus = run;
@@ -248,6 +250,8 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
         cur = cur->next;
         free(temp);
     }
+
+	mutex->waitList = NULL;
 	return 0;
 };
 
