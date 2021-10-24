@@ -96,7 +96,7 @@ void destroyAll(){
         cur = cur->next;
     }
 }
-void freeThreadQueue(void){
+void freeThreadQueue(){
     while(allThreadControlBlocks != NULL){
         threadControlList* temp = allThreadControlBlocks;
         allThreadControlBlocks = allThreadControlBlocks->next;

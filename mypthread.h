@@ -58,13 +58,12 @@ void unblockThread(mypthread_t tid);
 tcb* getTCB(mypthread_t tid);
 void freeNode(threadControlList* t);
 void destroyAll();
-void freeThreads(void);
+void freeThreadQueue();
 static void sched_stcf();
 tcb* create_tcb(mypthread_t tid, bool createContext);
 void setupAction();
 void setupTimer();
 void createMainThread();
-void freeThreads(void);
 
 /* create a new thread */
 int mypthread_create(mypthread_t * thread, pthread_attr_t * attr, void
@@ -91,8 +90,6 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex);
 
 /* destroy the mutex */
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex);
-
-void mainThreadAdd();
 
 #ifdef USE_MYTHREAD
 #define pthread_t mypthread_t
