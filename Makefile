@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -c
+CFLAGS = -g -c -Wall -Werror -fsanitize=address -std=c99
 AR = ar -rc
 RANLIB = ranlib
 
