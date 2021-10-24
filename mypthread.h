@@ -39,25 +39,24 @@ typedef struct {
 } tcb;
 
 
-typedef struct threadNode{
+typedef struct threadControlList{
 	tcb* thread;
-	struct threadNode* next;
-}threadNode;
+	struct threadControlList* next;
+}threadControlList;
 
 
 typedef struct mypthread_mutex_t {
 	int lock;
-    threadNode* waitList;
+    threadControlList* waitList;
 } mypthread_mutex_t;
 
 
 /* Function Declarations: */
-void enqueue(tcb* item);
-tcb* dequeue();
+void addThreadToTCB(tcb* item);
+tcb* getNextJob();
 void unblockThread(mypthread_t tid);
-bool isFinished(mypthread_t tid);
 tcb* getTCB(mypthread_t tid);
-void freeNode(threadNode* t);
+void freeNode(threadControlList* t);
 void destroyAll();
 void freeThreads(void);
 static void sched_stcf();
