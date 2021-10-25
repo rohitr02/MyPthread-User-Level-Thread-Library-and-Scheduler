@@ -256,6 +256,5 @@ static void sched_stcf() {
     }
     else {
 		currentlyRunningThreadBlock = prevThread;
-		if(currentlyRunningThreadBlock->threadID == 0) freeThreadQueue();
 	}
 }
