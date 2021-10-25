@@ -1,3 +1,9 @@
+/* 
+@author Pauli Peralta (pp589)
+@authot Rohit Rao (rpr797)
+iLab machine: ice.cs.rutgers.edu
+*/
+
 #include "mypthread.h"
 
 threadControlList* allThreadControlBlocks = NULL;

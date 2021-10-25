@@ -1,3 +1,9 @@
+/* 
+@author Pauli Peralta (pp589)
+@authot Rohit Rao (rpr797)
+iLab machine: ice.cs.rutgers.edu
+*/
+
 #ifndef MYTHREAD_T_H
 #define MYTHREAD_T_H
 
