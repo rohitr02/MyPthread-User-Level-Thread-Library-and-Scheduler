@@ -96,16 +96,6 @@ void destroyAll(){
         cur = cur->next;
     }
 }
-void freeThreadQueue(){
-    while(allThreadControlBlocks != NULL){
-        threadControlList* temp = allThreadControlBlocks;
-        allThreadControlBlocks = allThreadControlBlocks->next;
-        freeNode(temp);
-    }
-    free(currentlyRunningThreadBlock);
-}
-
-
 tcb* create_tcb(mypthread_t tid, bool createContext){
     tcb* thread = malloc(sizeof(tcb));
     thread->threadID = tid;
@@ -125,6 +115,7 @@ tcb* create_tcb(mypthread_t tid, bool createContext){
 
 void setupAction(){
     struct sigaction action;
+	memset(&action, 0, sizeof(struct sigaction));
     action.sa_handler = &sched_stcf;
     sigaction(SIGPROF, &action, NULL);
 }
@@ -219,7 +210,17 @@ int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
 
 /* release the mutex lock */
 int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
-    mutex->lock = 0;
+	threadControlList* cur = mutex->waitList;
+	while(cur != NULL){
+        cur->thread->threadStatus = run;
+        threadControlList* temp = cur;
+        cur = cur->next;
+        free(temp);
+    }
+	
+	mutex->waitList = NULL;
+	mutex->lock = 0;
+
 	return 0;
 };
 
@@ -227,16 +228,6 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
 /* destroy the mutex */
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 	mypthread_mutex_unlock(mutex);
-
-    threadControlList* cur = mutex->waitList;
-    while(cur != NULL){
-        cur->thread->threadStatus = run;
-        threadControlList* temp = cur;
-        cur = cur->next;
-        free(temp);
-    }
-
-	mutex->waitList = NULL;
 	return 0;
 };
 
