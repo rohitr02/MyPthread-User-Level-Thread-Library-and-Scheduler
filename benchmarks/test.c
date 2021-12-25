@@ -1,7 +1,7 @@
-// #include <stdio.h>
-// #include <unistd.h>
-// #include <pthread.h>
-// #include "../mypthread.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <pthread.h>
+#include "../mypthread.h"
 
 // /* A scratch program template on which to call and
 //  * test mypthread library functions as you implement
@@ -11,6 +11,9 @@
 //  * This will not be graded.
 //  */
 
+int main(int argc, char **argv){
+    return 1;
+}
 
 
 // void enqueue(threadQueue* q, tcb* item, int quantum){
